@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import csv
 import time
+from io import StringIO
 
 
 def find_titles(dr):
@@ -48,22 +49,28 @@ def next_page_button(dr):
     return None
 
 
-def dict_to_csv(dic, filename='descriptions.csv'):
+def dict_to_csv(dic):
     """
-    Saves a dictionary with ['', 'title', 'description'] columns (index, title, description)
+    Sends dic to StringIO in ['', 'title', 'description'] columns format (index, title, description)
     :param dic: {book_title: book_description} dictionary
-    :param filename: str, name of file where to save
-    :return: Nothing
+    :return: csv like data string
     """
-    with open(filename, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['', 'title', 'description'])
-        for i, (key, value) in enumerate(dic.items()):
-            writer.writerow([i, key, value])
-    return filename
+    out = StringIO()
+    writer = csv.writer(out)
+    writer.writerow(['', 'title', 'description'])
+    for i, (key, value) in enumerate(dic.items()):
+        writer.writerow([i, key, value])
+    data = out.getvalue()
+    out.close()
+    return data
 
 
 def parse(link):
+    """
+    Gets url to be parsed (https://alwaysjudgeabookbyitscover.com/)
+    :param link: can be any link, but works only with https://alwaysjudgeabookbyitscover.com/
+    :return: csv like data string
+    """
     driver = webdriver.Edge()
     driver.get(link)
     time.sleep(2)
@@ -71,33 +78,22 @@ def parse(link):
     titles = []
     description_dictionary = {}
     button = next_page_button(driver)
-    # cycle through pagination
     while True:
-        # get book titles list
         titles = find_titles(driver)
 
         # find all book descriptions and excluding redundant elements
         text = list(set([text for text in list([div.text for div in driver.find_elements(by=By.TAG_NAME, value="DIV")
                                                 if (div.text != '' and len(div.text) < 2000)])]))
 
-        # dictionary extension with new titles and descriptions
         description_dictionary = description_dictionary | description_dict(titles, text)
 
-        # get Next Page button element
         button = next_page_button(driver)
 
-        # check if it is the last page
         if button is None:
             break
 
-        # go to next page
         button.click()
         time.sleep(3)
 
-    # closing the driver
     driver.quit()
     return dict_to_csv(description_dictionary)
-
-
-if __name__ == "__main__":
-    parse("https://alwaysjudgeabookbyitscover.com/")
